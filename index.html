@@ -5,6 +5,7 @@
 <script type="text/javascript" src="raphael-1.5.2.min.js"></script>
 <script type="text/javascript" src="jquery-1.5.2.min.js"></script>
 <script type="text/javascript" src="jquery.history.min.js"></script>
+<!-- datasets: plain .js files (not .json) so the page works from file:// without a server -->
 <script type="text/javascript" src="philosophers.js"></script>
 <script type="text/javascript" src="painters.js"></script>
 <script type="text/javascript" src="musicians.js"></script>
@@ -74,9 +75,9 @@
 <h1><a href="http://mariandoerk.de/edgemaps">EdgeMaps</a></h1>
 
 <select id="data" tabindex="3">
-	<option selected value="phils">Philosophers</option>
-	<option value="paint">Painters</option>
-	<option value="music">Musicians</option>
+	<option selected value="philosophers">Philosophers</option>
+	<option value="painters">Painters</option>
+	<option value="musicians">Musicians</option>
 </select>
 
 <select id="view" tabindex="2">
@@ -91,10 +92,10 @@
 /*  CONFIG  */
 var winx = $(window).width(), winy = $(window).height()-30; /*  window  */
 var win = winy; if (winx<winy) win = winx; /*  min(winx, winy)  */
-var pixel = winx*winy/1000000; /*  res-independent pseudo pixel  */
-var dotstroke = 0.5+0.5*pixel; /*  whitboarder  */
+var pixel = (winx+winy)/2500; /*  res-independent pseudo pixel  */
+var dotstroke = pixel; /*  whitboarder  */
 var margin = Math.round(30*pixel); /*  distance to window border  */
-var r_min = 30, r_max = 900; /*  radius range  */
+var r_min = 25*pixel, r_max = 1500*pixel; /*  radius range  */
 var oneatatime = true;
 var speed = 200;
 var R = null;
@@ -108,9 +109,22 @@ var propagation = 1; /*  1st, 2nd (or 3rd) order propagation  */
 var legend = {};
 var ha = {}; /*  halos for picking  */
 var phs = {}; /*  search > founds items  */
+var ids; // sorted ids
 var position_res = 10;
 var resizeTime = null;
 var map_view = true; /* set deterministically in init() */
+
+/*  DATASETS: select value -> global variable defined by the data file  */
+var DATASETS = {
+  philosophers: function(){ return window.phils; },
+  painters:     function(){ return window.paint; },
+  musicians:    function(){ return window.music; }
+};
+/*  old URL hashes used the variable names as dataset keys  */
+var LEGACY_KEYS = { phils: "philosophers", paint: "painters", music: "musicians" };
+function datasetKey(k) { return LEGACY_KEYS[k] || k; }
+/*  ids used to carry a "/en/" prefix  */
+function nodeKey(k) { return (k || "").replace(/^\/en\//, ""); }
 
 /*  TIME LEGEND  */
 var years = {};
@@ -120,11 +134,11 @@ var ticks = {};
 var options = {};
 $('#about').click(function(){location.href="http://mariandoerk.de/edgemaps/";});
 $('#data').change(function(){
-  clicked="";
-  updateHash();
+  // clicked="";
   init();
+  updateHash();
+  
 });
-// $('#view').change(changeView);
 $('#view').change(function(){ changeView(false); });  // search hasn't changed via GUI switch
 $('#search').change(search);
 
@@ -135,10 +149,10 @@ var last_hash = window.location.hash.substr(1);
 if (last_hash!='')
 {
   var par = last_hash.split(";");
-  if (par[0]) $("#data").val(par[0]);
+  if (par[0] && DATASETS[datasetKey(par[0])]) $("#data").val(datasetKey(par[0]));
   if (par[1]) $("#view").val(par[1]);
   if (par[2]) $("#search").val(par[2]);
-  if (par[3]) clicked = par[3];
+  if (par[3]) clicked = nodeKey(par[3]);
 }
 
 $.History.bind(trackHash);
@@ -150,13 +164,12 @@ $(window).resize(
   }
 );
 
-function init ()
+function init()
 {
   years = {};
   ticks = {};
 
   var dataset = $("#data").val();
-
   if ($("div.svg").length==0 || $("#"+dataset).length==0)
   {
     $("div.svg").animate({opacity: 0}, 500, function(){$(this).remove()});
@@ -172,7 +185,7 @@ function init ()
   }
 
   dd = R.rect(-20,-20,10,10).attr("fill", "#fff"); /*  delay dummy   */
-  bg = R.rect(0, 0, winx, winy).attr({fill: '#fff', stroke: 'transparent'}).toBack();
+  bg = R.rect(0, 0, winx, winy).attr({fill: 'transparent', stroke: 'transparent'}).toFront();
   bg.click(function(){reset();});
 
   $(document).keyup(function(e){ if (e.keyCode == 27) reset(); });
@@ -182,16 +195,23 @@ function init ()
 
   $('#data').blur();
 
-  switch (dataset) {
-    case "phils": data = phils; break;
-    case "paint": data = paint; break;
-    case "music": data = music; break;
-  }
+  data = DATASETS[dataset]();
 
   ph = data.ph;
   positions = {};
-  yr_max = Number(data.yr_max);
-  yr_min = Number(data.yr_min);
+
+  /*  year range from the birth years  */
+  var by = Object.keys(ph).map(function(k){ return Number(ph[k].birthyear); });
+  yr_min = Math.min.apply(null, by);
+  yr_max = Math.max.apply(null, by);
+
+  // sort ids
+  ids = Object.keys(ph).sort((a, b) =>
+    (ph[b].to_count || 0) - (ph[a].to_count || 0) ||
+    (ph[b].name || "").localeCompare(ph[a].name || "")
+   );
+
+  if (typeof ph[clicked]=== "undefined") clicked="";
 
   generateInterestLayout();
   generateTimeLayout();
@@ -237,10 +257,11 @@ function trackHash(state)
   {
     var par  = (state || '').split(';');
 
-    var newData    = par[0] || $("#data").val();
+    var newData    = datasetKey(par[0]) || $("#data").val();
+    if (!DATASETS[newData]) newData = $("#data").val();
     var newView    = par[1] || $("#view").val();
     var newSearch  = (typeof par[2] !== 'undefined') ? par[2] : $("#search").val();
-    var newClicked = par[3] || "";
+    var newClicked = nodeKey(par[3]);
 
     var datasetChanged = (newData !== $("#data").val());
     var viewChanged    = (newView !== $("#view").val());
@@ -279,24 +300,24 @@ function trackHash(state)
   last_title = title();
   last_hash = state;
 }
+
+
 function title()
 {
   var title = "EdgeMaps: ";
 
-  switch ($("#data").val()) {
-    case "paint": title+="Painters - "; break;
-    case "music": title+="Musicians - "; break;
-    case "phils": title+="Philosophers - "; break;
-  }
+  // Use the selected option's label text instead of switch
+  var datasetLabel = $("#data option:selected").text();
+  title += datasetLabel + " - ";
 
   switch ($("#view").val()) {
-    case "time": title+="Timeline "; break;
-    case "map": title+="Similarity Map "; break;
+    case "time": title += "Timeline "; break;
+    case "map": title += "Similarity Map "; break;
   }
 
-  if ($("#search").val()!="") title+=" - Search: " + $("#search").val();
+  if ($("#search").val() != "") title += " - Search: " + $("#search").val();
 
-  if (clicked!='') title+=" - " + ph[clicked].name;
+  if (clicked != '') title += " - " + ph[clicked].name;
 
   return title;
 }
@@ -406,8 +427,9 @@ function clearForTransition() {
 
 /* Re-show labels for nodes matched by the active search (without changing dot styles) */
 function restoreSearchLabels(){
+  search(true);
   if (!phs) return;
-  for (var i in phs) {
+  for (var i in phs) {    
     if (typeof ph[i] !== "undefined") showLabel(i, (clicked === i));
   }
 }
@@ -420,16 +442,17 @@ function hasQuery() {
 
 function bringSelectionToFront(i){
   if (!ph[i]) return;
+  hideDetail();
   if (ox(ph[i].txtbox)) ph[i].txtbox.toFront();
   if (ox(ph[i].txt))    ph[i].txt.toFront();
   if (ox(ph[i].dot))    ph[i].dot.toFront();
+  showDetail(i);
   frontDetail(); // keep detail panel above as well
 }
 
-
 // reapplyFilter: pass true only when the search term itself changed
 function changeView(reapplyFilter)
-{
+{  
   var resumeClicked = clicked || "";
   var hadQuery = hasQuery();
 
@@ -479,54 +502,60 @@ function changeView(reapplyFilter)
   }, duration + 150);
 }
 
-function search(noupdate)
-{
-  var q = $("#search").unbind('change').blur().val();
-  reset(true); /* keep noupdate = true so we can control hash at end */
-  $("#search").val(q);
+function search(noupdate) {
+  // get and freeze the query in the input
+  var raw = $("#search").unbind('change').blur().val();
+  var q = (raw || "").trim();
+  reset(true); // keep noupdate = true so we can control hash at end
+  $("#search").val(raw);
 
-  if (q.length>2)
-  {
-    // matched people and topics
+  if (q.length > 2) {
     phs = {};
     var ins = {};
 
-    // search through interests and match corresponding people
-    for (i in data['in'])
-    {
-      if (data['in'][i].search(RegExp(q, 'i'))!=-1) ins[i] = true;
+    // escape regex specials in user input
+    var safe = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var re = new RegExp(safe, 'i');
+
+    // 1) match interests by label -> collect matching interest ids
+    for (var intId in data['in']) {
+      if (re.test(data['in'][intId])) {
+        ins[intId] = true; // intId is a Freebase id like "cubism"
+      }
     }
 
-    // search abstract and name of only those not matched by interests
-    for (i in ph)
-    {
+    // 2) for each philosopher, check if any of their interests is in `ins`
+    for (var pid in ph) {
       var interested = false;
-      for (j in ph[i]['in'])
-      {
-        if (typeof(ins[ ph[i]['in'][j] ])!=="undefined") interested = true;
-        phs[i] = true;
-        break;
+
+      // 'ints' maps interest ids -> 1
+      var myInts = ph[pid]['ints'] || ph[pid]['in'] || {};
+      for (var intId in myInts) {
+        if (ins[intId]) { // use the interest id (the key), not the value (1)
+          interested = true;
+          break;
+        }
       }
-      if (interested) continue;
-      else
-      {
-        if (ph[i].abstract.search(RegExp(q, 'i'))!=-1 || ph[i].name.search(RegExp(q, 'i'))!=-1)
-          phs[i] = true;
+
+      // 3) add if interest matched, or if name/abstract match
+      if (
+        interested ||
+        (ph[pid].abstract && re.test(ph[pid].abstract)) ||
+        (ph[pid].name && re.test(ph[pid].name))
+      ) {
+        phs[pid] = true;
       }
     }
 
-    // dim all but phs, show labels for those
-    for (i in ph)
-    {
-      if (typeof(phs[i])!=="undefined") showLabel (i, false);
-      else dimDot(i, true);
+    // 4) dim all but matches, show labels for matches
+    for (var pid in ph) {
+      if (phs[pid]) showLabel(pid, false);
+      else dimDot(pid, true);
     }
   }
 
   $('#search').change(search);
-
-  if (typeof(noupdate)=="undefined") updateHash();
-  else updateHash();
+  updateHash();
 }
 
 
@@ -595,7 +624,7 @@ function generateInterestLayout()
     else if (b>0 && a<=0) hue = 360+hue;
     else if (b<=0 && a<=0) hue = 360-(180+hue);
 
-    hue+=-10;
+    hue+=-10; /*  rotate the colour wheel (Marx ends up red, as in the paper)  */
 
     if (hue>=360) hue-=360;
     if (hue<0) hue+=360;
@@ -611,26 +640,23 @@ function generateInterestLayout()
   }
 }
 
-function drawInterestLayout()
-{
-  for (i in ph)
-  {
-    /*  draw dots  */
-    ph[i]["dot"] = R.circle(ph[i].pos.x, ph[i].pos.y, ph[i].pos.r);
-    ph[i].dot.attr({stroke: "#fff"}).attr("stroke-width", dotstroke);
+function drawInterestLayout() {
 
-    var colour = ph[i].hex;
+  ids.forEach(function(i) {
+    const p = ph[i].pos;
+    const colour = ph[i].hex;
 
-    ph[i].dot.attr("fill", colour).toFront();
+    ph[i].dot = R.circle(p.x, p.y, p.r)
+      .attr({ stroke: "#fff", "stroke-width": dotstroke, fill: colour });
 
-    /*  attach events  */
-    (function (h,i) {
+    // attach events
+    (function(h, i) {
       h.node.style.cursor = "pointer";
-      h.node.onmouseover = function () { mouseOver(i); };
-      h.node.onmouseout = function () {  mouseOut(i); };
-      h.node.onclick = function () { click(i); };
-    })(ph[i].dot,i);
-  }
+      h.node.onmouseover = function() { mouseOver(i); };
+      h.node.onmouseout  = function() { mouseOut(i); };
+      h.node.onclick     = function() { click(i); };
+    })(ph[i].dot, i);
+  });
 }
 
 function generateTimeLayout()
@@ -684,7 +710,7 @@ function generateTimeLayout()
   var next_year = yr_min;
 
   for (var y=yr_min; y < yr_max+1; y++)
-  {
+  { 
     if (typeof(phil_years[y])!=="undefined")
     {
       all_years[y] = phil_years[y];
@@ -694,7 +720,9 @@ function generateTimeLayout()
     else
     {
       // set next_phil_year
-      while (typeof(phil_years[next_year])=="undefined") next_year++;
+      while (typeof(phil_years[next_year])=="undefined" && next_year<=yr_max) {
+        next_year++;
+      }
 
       // interpolate
       var last_pos = phil_years[last_year];
@@ -740,15 +768,22 @@ function generateTimeLayout()
     }
   }
 
+  // gradients
   R.rect(0, y1-pixel, winx, 50*pixel).attr({
     fill: '270-#fff:0-#fff:100', 'stroke-width': 0,
     "fill-opacity": 0, "stroke-opacity": 0
   });
-
+  
   R.rect(0, y2-50*pixel, winx, 50*pixel).attr({
     fill: '90-#fff:0-#fff:100', 'stroke-width': 0,
     "fill-opacity": 0, "stroke-opacity": 0
   });
+  
+  // for (var i = 0; i < ticks.length; i++) ticks[i].toBack();
+  
+  bg.toFront();
+
+
 
 
   /*  centuries  */
@@ -796,10 +831,10 @@ function generateTimeLayout()
 
 function drawTimeLayout()
 {
-  map_view = false;
+  map_view = false; 
 
-  for (i in ph)
-  {
+  ids.forEach(function(i) {
+
     var p = ph[i].tpos;
 
     /*  draw dots  */
@@ -818,7 +853,7 @@ function drawTimeLayout()
       h.node.onclick = function () { click(i); };
     })(ph[i].dot,i);
 
-  }
+  });
 
   // display years
   for (y in years) years[y].animate({opacity: 1}, speed*2);
@@ -907,7 +942,7 @@ function showLegend()
 
 /*  hide labels, edges, show all dots  */
 function reset (noupdate)
-{
+{  
   if (typeof(ph)!=="undefined")
   {
     for (i in ph)
@@ -925,6 +960,8 @@ function reset (noupdate)
   clicked = "";
 
   if (typeof(noupdate)=="undefined") updateHash();
+  
+  ids.forEach(function(i) { ph[i].dot.toFront(); });
 }
 
 /*  INTERACTIONS  */
@@ -973,6 +1010,7 @@ function click (i, noupdate)
   {
     hideEdges(i);
     hideDetail();
+  
   }
 
   /*  dim all dots, hide all labels  */
@@ -1006,6 +1044,7 @@ function click (i, noupdate)
     hideLabel(clicked);
     showLabel(clicked, true);
   }
+  else ids.forEach(function(i) { ph[i].dot.toFront(); });
 
   frontDetail();
   if (typeof(noupdate)=="undefined") updateHash();
@@ -1247,21 +1286,68 @@ function hideLabel (i)
 function showDetail(i)
 {
   var colour = ph[i].hex;
+  var p = ph[i].pos; if (map_view == false) p = ph[i].tpos;
 
-  var p = ph[i].pos; if (map_view==false) p = ph[i].tpos;
+  /*  ids are old Freebase ids, Freebase is gone, so link to Wikipedia instead  */
+  var wpUrl = "https://en.wikipedia.org/wiki/Special:Search?go=Go&search=" + encodeURIComponent(ph[i].name);
 
   /*  txt  */
-  det["txt"] = R.text(winx, winy, ph[i].abstract);
-  det.txt.attr({"font-size": Math.round(8+4*pixel), "text-anchor": "start"});
+  
+  /*  abstracts carry hard line breaks from the source; re-wrap to ~40 characters  */
+  const wrappedA = (ph[i].abstract || "").replace(/\s+/g, " ").trim()
+    .replace(/(.{1,40})(\s|$)/g, "$1\n").trim();
+
+  det["txt"] = R.text(winx, winy, wrappedA);
+  det.txt.attr({"font-size": Math.round(8 + 4 * pixel), "text-anchor": "start"});
 
   var bt = det.txt.getBBox();
-  det.txt.attr({x: winx-bt.width-8-8*pixel, y: winy-bt.height/2-8-8*pixel, "text-align": 'left'});
+  det.txt.attr({
+    x: winx - bt.width - 8 - 8 * pixel,
+    y: winy - bt.height / 2 - 8 - 8 * pixel,
+    "text-align": "left"
+  });
   bt = det.txt.getBBox();
 
   /*  box  */
-  det["box"] = R.rect(bt.x-4-2*pixel, bt.y-4-2*pixel, bt.width+8+4*pixel, bt.height+8+4*pixel, 2+pixel)
-    .attr({fill: "#fff", "fill-opacity": 0.9, "stroke": colour, "stroke-width": 1+pixel, "opacity": 1});
+  det["box"] = R.rect(
+      bt.x - 4 - 2 * pixel, bt.y - 4 - 2 * pixel,
+      bt.width + 8 + 4 * pixel, bt.height + 8 + 4 * pixel,
+      2 + pixel
+    )
+    .attr({
+      fill: "#fff",
+      "fill-opacity": 0.9,
+      stroke: colour,
+      "stroke-width": 1 + pixel,
+      opacity: 1,
+      cursor: "pointer"
+    });
+
   det.txt.toFront();
+
+  // Make both text and box act as a hyperlink
+  function openWikipedia() {
+    window.open(wpUrl, "_blank", "noopener");
+  }
+  det.txt.click(openWikipedia).attr({cursor: "pointer"});
+  det.box.click(openWikipedia).attr({cursor: "pointer"});
+
+  var tip = "Open on Wikipedia ↗";
+  setSvgTitle(det.box.node, tip);
+  setSvgTitle(det.txt.node, tip);
+}
+
+function setSvgTitle(svgNode, tip) {
+  if (!svgNode) return;
+  var ns = "http://www.w3.org/2000/svg";
+  // reuse existing <title> if present (avoid duplicates)
+  var t = svgNode.querySelector("title");
+  if (!t) {
+    t = document.createElementNS(ns, "title");
+    // spec prefers <title> as the first child
+    svgNode.insertBefore(t, svgNode.firstChild);
+  }
+  t.textContent = tip;
 }
 
 function hideDetail()
