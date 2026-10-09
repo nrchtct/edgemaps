@@ -68,7 +68,7 @@ I have made these changes mainly as a careful restoration rather than a proper r
 
 - **URL hash state:** changes to the hash apply only what changed instead of resetting everything. Switching views keeps the search and the selected node. 
 - **Search:** user input is escaped, so characters like `(` or `+` no longer break it. Name, abstract and interest matches are combined.
-- **Rendering:** sizes scale with the window. Small nodes are drawn on top so they stay clickable. Animations are a bit faster.
+- **Rendering:** sizes scale with the window. Small nodes are drawn on top so they stay clickable. Hidden timeline labels and the legend no longer block clicks on the background, and clicking an edge also cancels the selection. Animations are a bit faster.
 - **Detail panel:** links to Wikipedia. Freebase images and links were removed because the service has shut down for a while.
 - **Data files:** one `DATASETS` table instead of `switch` statements. The timeline's year range is computed from the birth years. Removed the `/en/` prefix from ids and dropped unused fields (`guid`, `img_guid`, `am`, `yr_min`, `yr_max`).
 - **Cleanup:** removed dead code and old browser hacks.

@@ -66,6 +66,10 @@
     shape-rendering: optimizeSpeed;
     text-rendering: optimizeSpeed;
   }
+
+  /*  text never catches clicks: hidden year labels from the timeline and the legend
+      would otherwise block the background (reset) in the map  */
+  div.svg svg text { pointer-events: none; }
 	
 </style>
 
@@ -920,6 +924,7 @@ function showLegend()
 
   var to = toEdge(p2, t2, d, "#A8A8A8", d/3, 1);
   var fr = frEdge(t1, p1, d, "#A8A8A8", d/3, 1);
+  [to.edge, to.arrow, fr, legend.sig.small, legend.sig.large].forEach(function(e){ e.node.style.pointerEvents = "none"; });
 
   legend.inf["a"] = R.text(lb.x+lb.width+8+8*pixel, y-2, "A");
   legend.inf.a.attr("font-size", 8+2*pixel).attr("fill", "#A8A8A8");
@@ -1149,6 +1154,8 @@ function showEdges (i, o) /*  i: phil id, o: opacity  */
 
     ph[i].to_edges[to] = both.edge;
     ph[i].to_arrows[to] = both.arrow;
+    both.edge.click(cancelSelection);
+    both.arrow.click(cancelSelection);
   }
 
   /*  fr_edges */
@@ -1160,9 +1167,13 @@ function showEdges (i, o) /*  i: phil id, o: opacity  */
     if (map_view) var c = d/4; else var c = d/2; /*  curvature  */
 
     ph[i].fr_edges[fr] = frEdge(p, t, d, ph[fr].hex, c, o);
+    ph[i].fr_edges[fr].click(cancelSelection);
   }
 
 }
+/*  clicking an edge acts like clicking the background  */
+function cancelSelection() { reset(); }
+
 function hideEdgesKeepDot(i)
 {
   if (!ph[i]) return;
