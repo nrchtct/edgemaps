@@ -11,9 +11,14 @@
 <script type="text/javascript" src="musicians.js"></script>
 <style type="text/css" media="all">
 
+	/*  responsive type: 1rem is ~12px on a laptop, grows on large screens  */
+	html {
+		font-size: clamp(10px, calc((100vw + 100vh) / 190), 20px);
+	}
+
 	body {
 		font-family: helvetica, sans-serif;
-		margin: 1; padding: 0; font-size: 12px;
+		margin: 1; padding: 0; font-size: 1rem;
 		overflow: hidden;;
 		background-color: #fff;
 	}
@@ -27,21 +32,22 @@
 
 	div {
 		position: absolute;
-		top: 30px;
+		top: 2.5rem;
 		left: 0px;
 		opacity: 0;
 	}
 
 	select,input {
-		margin: 0 3px;
+		margin: 0 0.25rem;
 		float: right;
+		font-size: 1rem;
 	}
 	
 	h1 {
 		float: left;
 		margin: 0px; padding: 0;
-		font-size: 18px;
-		margin-right: 10px;
+		font-size: 1.5rem;
+		margin-right: 0.8rem;
 		color: #000;
 		font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, sans-serif;
 		font-weight: 300;
@@ -94,7 +100,10 @@
 
 <script type="text/javascript">
 /*  CONFIG  */
-var winx = $(window).width(), winy = $(window).height()-30; /*  window  */
+/*  root font size in px, so SVG text can be sized in rem as well  */
+var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 12;
+function fs(n) { return Math.round(n*rem*10)/10; }
+var winx = $(window).width(), winy = $(window).height()-2.5*rem; /*  window minus header  */
 var win = winy; if (winx<winy) win = winx; /*  min(winx, winy)  */
 var pixel = (winx+winy)/2500; /*  res-independent pseudo pixel  */
 var dotstroke = pixel; /*  whitboarder  */
@@ -800,7 +809,7 @@ function generateTimeLayout()
       if (y>yr_min && y<yr_max)
       {
         years[y] = R.text(all_years[y]-9*pixel, 75*pixel, y);
-        years[y].attr("font-size", Math.round(9+3*pixel)).attr("fill", "#555").attr("opacity", 0);
+        years[y].attr("font-size", fs(1)).attr("fill", "#555").attr("opacity", 0);
         years[y].attr({'font-weight': "normal", 'text-anchor': 'start'});
         years[y].rotate(-50);
         lastpos = all_years[y];
@@ -822,7 +831,7 @@ function generateTimeLayout()
         if (typeof years[y] == "undefined" )
         {
           years[y] = R.text(all_years[y]-7*pixel, 75*pixel+2*pixel, y);
-          years[y].attr("font-size", Math.round(7+3*pixel)).attr("fill", "#aaa").attr("opacity", 0);
+          years[y].attr("font-size", fs(0.8)).attr("fill", "#aaa").attr("opacity", 0);
           years[y].attr({'font-weight': "normal", 'text-anchor': 'start'});
           years[y].rotate(-50);
           lastpos = all_years[y];
@@ -871,19 +880,19 @@ function showLegend()
   // significance
 
   legend["title"] = R.text(0, y-20-10*pixel, "LEGEND");
-  legend.title.attr("font-size", 9+3*pixel).attr("fill", "#A8A8A8").attr("font-weight", "bold");
+  legend.title.attr("font-size", fs(1)).attr("fill", "#A8A8A8").attr("font-weight", "bold");
   var lb = legend.title.getBBox();
   legend.title.attr("x", 10+5*pixel+lb.width/2);
 
   legend["sig"] = {};
   legend.sig["label"] = R.text(0, y, "SIGNIFICANCE");
-  legend.sig.label.attr("font-size", 9+3*pixel).attr("fill", "#A8A8A8");
+  legend.sig.label.attr("font-size", fs(1)).attr("fill", "#A8A8A8");
   lb = legend.sig.label.getBBox();
   legend.sig.label.attr("x", 10+5*pixel+lb.width/2);
   lb = legend.sig.label.getBBox();
 
   legend.sig["label_small"] = R.text(0, y+10+10*pixel, "degree of influence");
-  legend.sig.label_small.attr("font-size", 8+2*pixel).attr("fill", "#A8A8A8");
+  legend.sig.label_small.attr("font-size", fs(0.85)).attr("fill", "#A8A8A8");
   var lbs = legend.sig.label_small.getBBox();
   legend.sig.label_small.attr("x", 10+5*pixel+lbs.width/2);
   lbs = legend.sig.label_small.getBBox();
@@ -894,12 +903,12 @@ function showLegend()
   legend.sig["small"] = R.circle(lbs.x+lbs.width+10+10*pixel, lb.y+lb.height/2, r1);
   legend.sig.small.attr("fill", "#D8D8D8").attr("stroke", "#fff");
   legend.sig["small_txt"] = R.text(lbs.x+lbs.width+10+10*pixel, lb.y+lb.height+r1, 1);
-  legend.sig.small_txt.attr("font-size", 8+2*pixel).attr("fill", "#A8A8A8");
+  legend.sig.small_txt.attr("font-size", fs(0.85)).attr("fill", "#A8A8A8");
 
   legend.sig["large"] = R.circle(lbs.x+lbs.width+10+10*pixel+r2*2, lb.y+lb.height/2, r2);
   legend.sig.large.attr("fill", "#D8D8D8").attr("stroke", "#fff");
   legend.sig["large_txt"] = R.text(lbs.x+lbs.width+10+10*pixel+r2*2, lb.y+lb.height+r2, data.to_max);
-  legend.sig.large_txt.attr("font-size", 8+2*pixel).attr("fill", "#A8A8A8");
+  legend.sig.large_txt.attr("font-size", fs(0.85)).attr("fill", "#A8A8A8");
 
   var mb = legend.sig.large.getBBox();
 
@@ -909,7 +918,7 @@ function showLegend()
 
   legend["inf"] = {};
   legend.inf["label"] = R.text(0, y, "INFLUENCE");
-  legend.inf.label.attr("font-size", 9+3*pixel).attr("fill", "#A8A8A8");
+  legend.inf.label.attr("font-size", fs(1)).attr("fill", "#A8A8A8");
 
   lb = legend.inf.label.getBBox();
   legend.inf.label.attr("x", 10+5*pixel+lb.width/2);
@@ -927,20 +936,20 @@ function showLegend()
   [to.edge, to.arrow, fr, legend.sig.small, legend.sig.large].forEach(function(e){ e.node.style.pointerEvents = "none"; });
 
   legend.inf["a"] = R.text(lb.x+lb.width+8+8*pixel, y-2, "A");
-  legend.inf.a.attr("font-size", 8+2*pixel).attr("fill", "#A8A8A8");
+  legend.inf.a.attr("font-size", fs(0.85)).attr("fill", "#A8A8A8");
 
   legend.inf["b"] = R.text(lb.x+lb.width+43+43*pixel-2, y-2, "B");
-  legend.inf.b.attr("font-size", 9+3*pixel).attr("fill", "#A8A8A8");
+  legend.inf.b.attr("font-size", fs(1)).attr("fill", "#A8A8A8");
 
   legend.inf["c"] = R.text(lb.x+lb.width+78+78*pixel, y-2, "C");
-  legend.inf.c.attr("font-size", 8+2*pixel).attr("fill", "#A8A8A8");
+  legend.inf.c.attr("font-size", fs(0.85)).attr("fill", "#A8A8A8");
 
   var ab = legend.inf.a.getBBox();
   var bb = legend.inf.b.getBBox();
   var cb = legend.inf.c.getBBox();
 
   legend.inf["label_small"] = R.text(0, y+10+10*pixel, "A influenced B, and B influenced C");
-  legend.inf.label_small.attr("font-size", 8+2*pixel).attr("fill", "#A8A8A8");
+  legend.inf.label_small.attr("font-size", fs(0.85)).attr("fill", "#A8A8A8");
   var lbs = legend.inf.label_small.getBBox();
   legend.inf.label_small.attr("x", lb.x+lbs.width/2);
 }
@@ -1230,7 +1239,7 @@ function showLabel (i, bold)
   {
     /*  text label */
     ph[i]["txt"] = R.text(p.x, p.y+p.r*1.25+7, ph[i].name_short);
-    ph[i].txt.attr("font-size", Math.round(p.r/2)+7);
+    ph[i].txt.attr("font-size", Math.round(p.r/2 + fs(0.6)));
     ph[i].txt.attr("fill", colourd);
 
     /*  label box  */
@@ -1246,7 +1255,7 @@ function showLabel (i, bold)
     var dbox = ph[i].dot.getBBox();
 
     ph[i]["txt"] = R.text(p.x, p.y+dbox.height/2, ph[i].name_short);
-    ph[i].txt.attr("font-size", Math.round(p.r/2)+7);
+    ph[i].txt.attr("font-size", Math.round(p.r/2 + fs(0.6)));
     ph[i].txt.attr("fill", colourd);
 
     var bbox = ph[i].txt.getBBox();
@@ -1309,7 +1318,7 @@ function showDetail(i)
     .replace(/(.{1,40})(\s|$)/g, "$1\n").trim();
 
   det["txt"] = R.text(winx, winy, wrappedA);
-  det.txt.attr({"font-size": Math.round(8 + 4 * pixel), "text-anchor": "start"});
+  det.txt.attr({"font-size": fs(1), "text-anchor": "start"});
 
   var bt = det.txt.getBBox();
   det.txt.attr({
